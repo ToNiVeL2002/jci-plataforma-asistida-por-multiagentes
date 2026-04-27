@@ -1,0 +1,96 @@
+# =============================================================
+# docker-compose.prod.yml — PRODUCCIÓN (para EC2)
+# Uso: docker-compose -f docker-compose.prod.yml up -d
+# Requiere: .env.docker con los valores reales de producción
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # Frontend — Build estático servido por Nginx
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner           # Stage final con Nginx
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_API_URL: ${VITE_API_URL}
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - jci-network
+
+  # -----------------------------------------------------------
+  # Backend — FastAPI producción (sin --reload)
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - ENVIRONMENT=production
+      - IA_DIAGNOSTICO_URL=http://ia-diagnostico:9000
+      - IA_BASE_URL=http://ia-seguimiento:9000
+    restart: unless-stopped
+    depends_on:
+      - ia-diagnostico
+      - ia-seguimiento
+    networks:
+      - jci-network
+
+  # -----------------------------------------------------------
+  # IA Diagnóstico — Producción (sin puerto expuesto al exterior)
+  # -----------------------------------------------------------
+  ia-diagnostico:
+    build:
+      context: ./IA
+      dockerfile: Dockerfile
+    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
+    # Puerto NO expuesto al host — solo accesible internamente por el backend
+    expose:
+      - "9000"
+    environment:
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - BACKEND_URL=http://backend:8000
+    restart: unless-stopped
+    networks:
+      - jci-network
+
+  # -----------------------------------------------------------
+  # IA Seguimiento — Producción (sin puerto expuesto al exterior)
+  # -----------------------------------------------------------
+  ia-seguimiento:
+    build:
+      context: ./IA
+      dockerfile: Dockerfile
+    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
+    expose:
+      - "9000"
+    environment:
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - EMAIL_SENDER=${EMAIL_SENDER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - BACKEND_URL=http://backend:8000
+    restart: unless-stopped
+    networks:
+      - jci-network
+
+networks:
+  jci-network:
+    driver: bridge

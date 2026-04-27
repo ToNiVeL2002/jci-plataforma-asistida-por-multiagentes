@@ -3,12 +3,13 @@ ADK Tools — funciones que el OrchestratorAgent invoca para gestionar el diagn�
 Todas las funciones usan tool_context.state para mantener el estado de la sesión.
 """
 
+import os
 import requests
 from google.adk.tools import ToolContext
 from .questions import AREA_MAP, QUESTION_KEY_MAP, AREA_NAMES, CONSISTENCY_RULES
 
 
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 
 
 # ──────────────────────────────────────────────

@@ -2,6 +2,7 @@
 Router de Diagnóstico
 Endpoints para gestión de diagnósticos
 """
+import os
 from fastapi import APIRouter, HTTPException, status
 from app.services.diagnostico_service import DiagnosticoService
 from app.models.diagnostico import (
@@ -133,7 +134,7 @@ async def actualizar_diagnostico(id_diagnostico: int, update_data: DiagnosticoUp
 
 # ============ Endpoints de IA ============
 
-IA_BASE_URL = "http://localhost:9000"
+IA_BASE_URL = os.environ.get("IA_DIAGNOSTICO_URL", "http://localhost:9000")
 APP_NAME = "multi_agente_diagnostico"
 
 

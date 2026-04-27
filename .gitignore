@@ -24,6 +24,8 @@ __pycache__/
 .env.*.local
 # Aseguramos que los .env de la IA tampoco suban
 IA/**/.env
+# Variables de entorno para Docker (contienen secretos reales)
+.env.docker
 
 # =============================
 # Node / Frontend
