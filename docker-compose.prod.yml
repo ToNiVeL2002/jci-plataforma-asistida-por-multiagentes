@@ -1,6 +1,6 @@
 # =============================================================
 # docker-compose.prod.yml — PRODUCCIÓN (para EC2)
-# Uso: docker-compose -f docker-compose.prod.yml up -d
+# Uso: docker-compose -f docker-compose.prod.yml --env-file .env.docker up -d
 # Requiere: .env.docker con los valores reales de producción
 # =============================================================
 
@@ -22,7 +22,8 @@ services:
       - "80:80"
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - jci-network
 
@@ -47,8 +48,16 @@ services:
       - IA_BASE_URL=http://ia-seguimiento:9000
     restart: unless-stopped
     depends_on:
-      - ia-diagnostico
-      - ia-seguimiento
+      ia-diagnostico:
+        condition: service_healthy
+      ia-seguimiento:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - jci-network
 
@@ -68,6 +77,12 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - BACKEND_URL=http://backend:8000
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/list-apps')"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 40s
     networks:
       - jci-network
 
@@ -88,6 +103,12 @@ services:
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
       - BACKEND_URL=http://backend:8000
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/list-apps')"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 40s
     networks:
       - jci-network
 

@@ -43,6 +43,15 @@ export interface PreguntasAreaRequest {
     id_area: number;
 }
 
+export interface PreguntasTodasRequest {
+    session_id: string;
+    user_id: string;
+}
+
+export interface PreguntasTodasResponse {
+    preguntas: PreguntaReformulada[];
+}
+
 export interface PreguntasAreaResponse {
     id_area: number;
     nombre_area: string;
@@ -119,6 +128,19 @@ export const diagnosticoIAService = {
     ): Promise<PreguntasAreaResponse> => {
         const response = await apiClient.post<PreguntasAreaResponse>(
             '/diagnostico/ia/preguntas-area',
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Obtiene todas las preguntas reformuladas de todas las áreas activas
+     */
+    obtenerTodasPreguntas: async (
+        request: PreguntasTodasRequest
+    ): Promise<PreguntasTodasResponse> => {
+        const response = await apiClient.post<PreguntasTodasResponse>(
+            '/diagnostico/ia/preguntas-todas',
             request
         );
         return response.data;

@@ -1,16 +1,18 @@
 # ============================================================
-# Stage 1: builder — compila el proyecto TypeScript/React
+# Stage 1: deps — instala dependencias (usado por dev con hot-reload)
 # ============================================================
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
-# Copiar dependencias primero (mejor cache)
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copiar código fuente y construir
-# Las variables VITE_* se inyectan como build args
+# ============================================================
+# Stage 2: builder — compila el proyecto (usado en producción)
+# ============================================================
+FROM deps AS builder
+
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_API_URL=http://localhost:8000

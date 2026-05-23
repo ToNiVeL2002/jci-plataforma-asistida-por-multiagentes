@@ -1,6 +1,6 @@
 # =============================================================
 # docker-compose.yml — DESARROLLO (hot-reload)
-# Uso: docker-compose up
+# Uso: docker-compose --env-file .env.docker up
 # Requiere: .env.docker con los valores reales
 # =============================================================
 
@@ -13,7 +13,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: builder          # Usa solo el stage builder (no Nginx)
+      target: deps             # Solo instala deps para dev (sin build innecesario)
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     ports:
       - "5173:5173"
@@ -66,7 +66,7 @@ services:
       dockerfile: Dockerfile
     command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
     # ports:
-    #   - "9000:9000"            # Accesible en localhost:9000 para debug
+    #   - "9000:9000"            # Descomentar para debug local
     volumes:
       - ./IA:/app              # Hot-reload para desarrollo de agentes
     environment:

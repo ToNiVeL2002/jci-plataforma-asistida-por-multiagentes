@@ -25,6 +25,8 @@ from app.models.diagnostico import (
     EvaluarAreaResponse,
     ResultadosRequest,
     ResultadosResponse,
+    PreguntasTodasRequest,
+    PreguntasTodasResponse,
 )
 import httpx
 
@@ -348,6 +350,85 @@ async def obtener_preguntas_area_ia(request: PreguntasAreaRequest):
         )
 
 
+@router.post("/ia/preguntas-todas", response_model=PreguntasTodasResponse)
+async def obtener_todas_preguntas_ia(request: PreguntasTodasRequest):
+    """
+    Obtiene TODAS las preguntas activas (estado = True) del diagnóstico y las envía al ADK para reformulación batch completa.
+    """
+    try:
+        from app.services.pregunta_service import PreguntaService
+        import json
+        
+        # Obtener todas las preguntas activas desde la DB
+        pregunta_service = PreguntaService()
+        preguntas_db = await pregunta_service.get_all_active_preguntas()
+        
+        # Preparar JSON de preguntas para el ADK
+        preguntas_json = [
+            {
+                "id_pregunta": p.id_pregunta,
+                "area": p.nombre_area,
+                "enunciado": p.enunciado,
+            }
+            for p in preguntas_db
+        ]
+        
+        mensaje = f"REFORMULAR_PREGUNTAS:{json.dumps(preguntas_json, ensure_ascii=False)}"
+        
+        # Enviar al ADK
+        respuesta = await _send_to_adk(request.user_id, request.session_id, mensaje)
+        
+        # Parsear respuesta JSON del agente
+        try:
+            # Limpiar posibles bloques markdown
+            clean = respuesta.strip()
+            if clean.startswith("```"):
+                clean = clean.split("\n", 1)[1] if "\n" in clean else clean
+                clean = clean.rsplit("```", 1)[0]
+            preguntas_reformuladas = json.loads(clean)
+        except (json.JSONDecodeError, IndexError):
+            # Si no puede parsear JSON, crear formato básico
+            preguntas_reformuladas = [
+                {
+                    "id_pregunta": p.id_pregunta,
+                    "area": p.nombre_area,
+                    "intro": "",
+                    "pregunta": p.enunciado,
+                    "ejemplo": "",
+                }
+                for p in preguntas_db
+            ]
+        
+        # Crear un mapa de id_pregunta -> nombre_area para asegurar mapeo correcto en la respuesta
+        pregunta_area_map = {p.id_pregunta: p.nombre_area for p in preguntas_db}
+        
+        return PreguntasTodasResponse(
+            preguntas=[
+                PreguntaReformulada(
+                    id_pregunta=pr.get("id_pregunta", 0),
+                    area=pregunta_area_map.get(pr.get("id_pregunta", 0), "Desconocida"),
+                    intro=pr.get("intro", ""),
+                    pregunta=pr.get("pregunta", ""),
+                    ejemplo=pr.get("ejemplo", ""),
+                )
+                for pr in preguntas_reformuladas
+            ],
+        )
+    
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Error al conectar con la IA: {str(e)}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener todas las preguntas reformuladas: {str(e)}"
+        )
+
+
 @router.post("/ia/evaluar-area", response_model=EvaluarAreaResponse)
 async def evaluar_area_ia(request: EvaluarAreaRequest):
     """
@@ -458,8 +539,8 @@ async def evaluar_area_ia(request: EvaluarAreaRequest):
                         respuesta_usuario=r.respuesta,
                         puntaje=float(puntaje),
                     )
-                except Exception:
-                    pass
+                except Exception as db_err:
+                    print(f"[DB ERROR] Error al guardar detalle: id_diagnostico={id_diagnostico}, id_pregunta={r.id_pregunta}, err: {db_err}")
         
         return EvaluarAreaResponse(
             scores=[

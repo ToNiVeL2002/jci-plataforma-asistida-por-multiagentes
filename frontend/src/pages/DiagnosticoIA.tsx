@@ -201,8 +201,8 @@ export const DiagnosticoIA = () => {
                     'ai'
                 );
 
-                // Cargar primera área
-                await cargarPreguntasArea(response.session_id, response.user_id, response.areas, 0);
+                // Cargar todas las preguntas activas en lote
+                await cargarTodasLasPreguntas(response.session_id, response.user_id, response.areas);
             } catch (error) {
                 console.error('Error al inicializar:', error);
                 addMessage('Lo siento, hubo un error al conectar. Por favor, intenta nuevamente.', 'ai');
@@ -230,48 +230,55 @@ export const DiagnosticoIA = () => {
     }, [isSessionReady, sessionId, userId, fase]);
 
     // ═══════════════════════════════════════
-    // Cargar preguntas de un área
+    // Sincronizar automáticamente areaActualIdx basado en el área de la pregunta actual
+    useEffect(() => {
+        if (preguntasArea.length > 0 && preguntaActualIdx < preguntasArea.length && areas.length > 0) {
+            const currentPregunta = preguntasArea[preguntaActualIdx];
+            const idx = areas.findIndex(a => a.nombre_area === currentPregunta.area);
+            if (idx !== -1) {
+                setAreaActualIdx(idx);
+            }
+        }
+    }, [preguntaActualIdx, preguntasArea, areas]);
+
+    // ═══════════════════════════════════════
+    // Cargar todas las preguntas en lote
     // ═══════════════════════════════════════
 
-    const cargarPreguntasArea = async (
+    const cargarTodasLasPreguntas = async (
         sid: string,
         uid: string,
-        areasArr: AreaInfo[],
-        areaIdx: number
+        areasArr: AreaInfo[]
     ) => {
-        if (areaIdx >= areasArr.length) {
-            // No hay más áreas — generar resultados con lo acumulado hasta ahora
-            await generarResultados(sid, uid, areaScoresAcum);
-            return;
-        }
-
-        const area = areasArr[areaIdx];
-        setAreaActualIdx(areaIdx);
         setFase('loading');
         setRespuestasArea([]);
         setPreguntaActualIdx(0);
 
-        addMessage(`📋 **Área ${areaIdx + 1} de ${areasArr.length}: ${area.nombre_area}**`, 'ai');
-        await delay(1000);
-
         try {
-            const resp = await diagnosticoIAService.obtenerPreguntasArea({
+            const resp = await diagnosticoIAService.obtenerTodasPreguntas({
                 session_id: sid,
                 user_id: uid,
-                id_area: area.id_area,
             });
+
+            if (!resp.preguntas || resp.preguntas.length === 0) {
+                addMessage('No se encontraron preguntas de diagnóstico activas.', 'ai');
+                return;
+            }
 
             setPreguntasArea(resp.preguntas);
             setPreguntaActualIdx(0);
+
+            // Mostrar el primer banner de área
+            const primeraPregunta = resp.preguntas[0];
+            addMessage(`📋 **Área: ${primeraPregunta.area}**`, 'ai');
+            
             // Mantener 'loading' durante el delay para mostrar el indicador de typing
-            await delay(1200);
+            await delay(1500);
             setFase('preguntando');
             mostrarPregunta(resp.preguntas, 0);
         } catch (error) {
             console.error('Error al cargar preguntas:', error);
-            addMessage('Hubo un error al cargar las preguntas. Continuando...', 'ai');
-            // Intentar con la siguiente área
-            await cargarPreguntasArea(sid, uid, areasArr, areaIdx + 1);
+            addMessage('Hubo un error al cargar las preguntas del diagnóstico. Por favor, intenta de nuevo.', 'ai');
         }
     };
 
@@ -292,55 +299,72 @@ export const DiagnosticoIA = () => {
     };
 
     // ═══════════════════════════════════════
-    // Evaluar respuestas del área
+    // Evaluar todas las respuestas de forma secuencial en background
     // ═══════════════════════════════════════
 
-    const evaluarAreaActual = async (
+    const evaluarTodoSecuencial = async (
         sid: string,
         uid: string,
         areasArr: AreaInfo[],
-        areaIdx: number,
         respuestas: RespuestaUsuario[]
     ) => {
-        const area = areasArr[areaIdx];
         setFase('evaluando');
         setStatusOverlay('evaluando');
 
+        const scoresAcumulados: { id_area: number; area_promedio: number }[] = [];
+
         try {
-            const evalResp = await diagnosticoIAService.evaluarArea({
-                session_id: sid,
-                user_id: uid,
-                id_area: area.id_area,
-                respuestas,
-            });
+            // Evaluar secuencialmente cada área en background
+            for (let i = 0; i < areasArr.length; i++) {
+                const area = areasArr[i];
+                
+                // Buscar preguntas asociadas a esta área
+                const preguntasDeEsteArea = preguntasArea.filter(p => p.area === area.nombre_area);
+                const idsDeEsteArea = new Set(preguntasDeEsteArea.map(p => p.id_pregunta));
+                const respuestasDeEsteArea = respuestas.filter(r => idsDeEsteArea.has(r.id_pregunta));
+
+                if (respuestasDeEsteArea.length > 0) {
+                    try {
+                        const evalResp = await diagnosticoIAService.evaluarArea({
+                            session_id: sid,
+                            user_id: uid,
+                            id_area: area.id_area,
+                            respuestas: respuestasDeEsteArea,
+                        });
+                        scoresAcumulados.push({
+                            id_area: area.id_area,
+                            area_promedio: evalResp.area_promedio
+                        });
+                    } catch (err) {
+                        console.error(`Error al evaluar área ${area.nombre_area}:`, err);
+                        // En caso de error de red, dar un puntaje por defecto para no romper el flujo
+                        scoresAcumulados.push({
+                            id_area: area.id_area,
+                            area_promedio: 50
+                        });
+                    }
+                } else {
+                    // Si un área no tiene preguntas activas, puntaje 0
+                    scoresAcumulados.push({
+                        id_area: area.id_area,
+                        area_promedio: 0
+                    });
+                }
+            }
 
             // Mostrar animación de completado brevemente
             setStatusOverlay('completada');
-
-            // Acumular el puntaje de esta área
-            const newScore = { id_area: area.id_area, area_promedio: evalResp.area_promedio };
-            const updatedScores = [...areaScoresAcum, newScore];
-            setAreaScoresAcum(updatedScores);
+            setAreaScoresAcum(scoresAcumulados);
 
             await delay(1800);
             setStatusOverlay(null);
 
-            // Siguiente área
-            const nextIdx = areaIdx + 1;
-            if (nextIdx < areasArr.length) {
-                await cargarPreguntasArea(sid, uid, areasArr, nextIdx);
-            } else {
-                await generarResultados(sid, uid, updatedScores);
-            }
+            // Generar resultados finales
+            await generarResultados(sid, uid, scoresAcumulados);
         } catch (error) {
-            console.error('Error al evaluar:', error);
+            console.error('Error durante la evaluación secuencial:', error);
             setStatusOverlay(null);
-            const nextIdx = areaIdx + 1;
-            if (nextIdx < areasArr.length) {
-                await cargarPreguntasArea(sid, uid, areasArr, nextIdx);
-            } else {
-                await generarResultados(sid, uid, areaScoresAcum);
-            }
+            await generarResultados(sid, uid, scoresAcumulados.length > 0 ? scoresAcumulados : areaScoresAcum);
         }
     };
 
@@ -403,19 +427,29 @@ export const DiagnosticoIA = () => {
             const siguienteIdx = preguntaActualIdx + 1;
 
             if (siguienteIdx < preguntasArea.length) {
-                // Hay más preguntas en esta área — mostrar después de un delay
+                const siguientePregunta = preguntasArea[siguienteIdx];
+                
                 setPreguntaActualIdx(siguienteIdx);
                 setFase('loading'); // Activa el indicador de typing
-                await delay(1400);
+
+                // Si la siguiente pregunta es de otra área, mostrar banner de transición
+                if (siguientePregunta.area !== preguntaActual.area) {
+                    await delay(800);
+                    addMessage(`📋 **Área: ${siguientePregunta.area}**`, 'ai');
+                    await delay(1200);
+                } else {
+                    await delay(1400);
+                }
+
                 setFase('preguntando');
                 mostrarPregunta(preguntasArea, siguienteIdx);
             } else {
-                // Terminó esta área — evaluar
-                await evaluarAreaActual(sessionId, userId, areas, areaActualIdx, nuevasRespuestas);
+                // Terminaron todas las preguntas — evaluar secuencialmente
+                await evaluarTodoSecuencial(sessionId, userId, areas, nuevasRespuestas);
             }
         } catch (error) {
             console.error('Error al procesar respuesta:', error);
-            addMessage('Hubo un error. Intenta de nuevo.', 'ai');
+            addMessage('Hubo un error al procesar tu respuesta. Por favor, intenta de nuevo.', 'ai');
         } finally {
             setIsSending(false);
         }
@@ -653,7 +687,7 @@ export const DiagnosticoIA = () => {
                                         <svg className="w-4 h-4 text-activa-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-xs font-semibold text-activa-coral">¡Área completada!</span>
+                                        <span className="text-xs font-semibold text-activa-coral">¡Diagnóstico completado!</span>
                                     </div>
                                 )}
                             </div>

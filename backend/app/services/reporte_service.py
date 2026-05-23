@@ -176,8 +176,24 @@ class ReporteService:
             
             # 8. Calcular estadísticas globales
             total_emprendedores = len(emprendedores)
-            diagnosticos_aceptados = len([d for d in diagnosticos if d.get("estado") == "ACEPTADO"])
-            tasa_aprobado = (diagnosticos_aceptados / len(diagnosticos) * 100) if len(diagnosticos) > 0 else 0
+            
+            # Obtener el último diagnóstico válido por emprendedor
+            latest_map = {}
+            for d in diagnosticos:
+                uid = d.get("id_usuario")
+                if not uid or d.get("resultado") not in ("ACEPTADO", "EXIMIDO", "RECHAZADO"):
+                    continue
+                if uid not in latest_map:
+                    latest_map[uid] = d
+                else:
+                    fecha_curr = d.get("fecha_inicio")
+                    fecha_prev = latest_map[uid].get("fecha_inicio")
+                    if fecha_curr and fecha_prev and str(fecha_curr) > str(fecha_prev):
+                        latest_map[uid] = d
+            
+            diagnosticos_valido = list(latest_map.values())
+            diagnosticos_aceptados = len([d for d in diagnosticos_valido if d.get("resultado") in ("ACEPTADO", "EXIMIDO")])
+            tasa_aprobado = (diagnosticos_aceptados / len(diagnosticos_valido) * 100) if len(diagnosticos_valido) > 0 else 0
             
             global_cf = sum(e.promedio_cf for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
             global_gp = sum(e.promedio_gp for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
@@ -327,8 +343,24 @@ class ReporteService:
             
             # 6. Estadísticas globales
             total_emprendedores = len(emprendedores)
-            diagnosticos_aceptados = len([d for d in diagnosticos if d.get("estado") == "ACEPTADO"])
-            tasa_aprobado = (diagnosticos_aceptados / len(diagnosticos) * 100) if len(diagnosticos) > 0 else 0
+            
+            # Obtener el último diagnóstico válido por emprendedor
+            latest_map = {}
+            for d in diagnosticos:
+                uid = d.get("id_usuario")
+                if not uid or d.get("resultado") not in ("ACEPTADO", "EXIMIDO", "RECHAZADO"):
+                    continue
+                if uid not in latest_map:
+                    latest_map[uid] = d
+                else:
+                    fecha_curr = d.get("fecha_inicio")
+                    fecha_prev = latest_map[uid].get("fecha_inicio")
+                    if fecha_curr and fecha_prev and str(fecha_curr) > str(fecha_prev):
+                        latest_map[uid] = d
+            
+            diagnosticos_valido = list(latest_map.values())
+            diagnosticos_aceptados = len([d for d in diagnosticos_valido if d.get("resultado") in ("ACEPTADO", "EXIMIDO")])
+            tasa_aprobado = (diagnosticos_aceptados / len(diagnosticos_valido) * 100) if len(diagnosticos_valido) > 0 else 0
             
             global_cf = sum(e.promedio_cf for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
             global_gp = sum(e.promedio_gp for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
@@ -1168,8 +1200,24 @@ class ReporteService:
 
             # 6. Estadísticas globales del grupo
             n = len(emprendedores)
-            aceptados = len([d for d in diagnosticos if d.get("resultado") == "ACEPTADO"])
-            tasa = round(aceptados / len(diagnosticos) * 100, 1) if diagnosticos else 0
+            
+            # Obtener el último diagnóstico válido por emprendedor
+            latest_map = {}
+            for d in diagnosticos:
+                uid = d.get("id_usuario")
+                if not uid or d.get("resultado") not in ("ACEPTADO", "EXIMIDO", "RECHAZADO"):
+                    continue
+                if uid not in latest_map:
+                    latest_map[uid] = d
+                else:
+                    fecha_curr = d.get("fecha_inicio")
+                    fecha_prev = latest_map[uid].get("fecha_inicio")
+                    if fecha_curr and fecha_prev and str(fecha_curr) > str(fecha_prev):
+                        latest_map[uid] = d
+            
+            diagnosticos_valido = list(latest_map.values())
+            aceptados = len([d for d in diagnosticos_valido if d.get("resultado") in ("ACEPTADO", "EXIMIDO")])
+            tasa = round(aceptados / len(diagnosticos_valido) * 100, 1) if diagnosticos_valido else 0
 
             estadisticas = EstadisticasGlobales(
                 total_emprendedores=n,
@@ -1421,9 +1469,24 @@ class ReporteService:
                     for area in areas:
                         areas[area] += d.get(f"puntaje_{area}", 0) or 0
 
-                n = len(all_diags_m)
-                aceptados = len([d for d in all_diags_m if d.get("resultado") == "ACEPTADO"])
-                tasa = round(aceptados / n * 100, 1) if n else 0
+                # Obtener el último diagnóstico válido por emprendedor
+                latest_map = {}
+                for d in all_diags_m:
+                    uid = d.get("id_usuario")
+                    if not uid or d.get("resultado") not in ("ACEPTADO", "EXIMIDO", "RECHAZADO"):
+                        continue
+                    if uid not in latest_map:
+                        latest_map[uid] = d
+                    else:
+                        fecha_curr = d.get("fecha_inicio")
+                        fecha_prev = latest_map[uid].get("fecha_inicio")
+                        if fecha_curr and fecha_prev and str(fecha_curr) > str(fecha_prev):
+                            latest_map[uid] = d
+                
+                diags_validas = list(latest_map.values())
+                n_validas = len(diags_validas)
+                aceptados = len([d for d in diags_validas if d.get("resultado") in ("ACEPTADO", "EXIMIDO")])
+                tasa = round(aceptados / n_validas * 100, 1) if n_validas else 0
                 prom_general = round(sum(areas.values()) / (n * 7), 1)
 
                 resultados.append(MentorResumenReporte(
