@@ -68,7 +68,7 @@ services:
     build:
       context: ./IA
       dockerfile: Dockerfile
-    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
+    command: ["adk", "api_server", "multi_agente_diagnostico", "--port", "9000", "--host", "0.0.0.0"]
     # Puerto NO expuesto al host — solo accesible internamente por el backend
     expose:
       - "9000"
@@ -93,7 +93,7 @@ services:
     build:
       context: ./IA
       dockerfile: Dockerfile
-    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
+    command: ["adk", "api_server", "multi_agente_seguimiento", "--port", "9000", "--host", "0.0.0.0"]
     expose:
       - "9000"
     environment:
