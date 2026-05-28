@@ -248,7 +248,7 @@ export const DiagnosticoIA = () => {
     const cargarTodasLasPreguntas = async (
         sid: string,
         uid: string,
-        areasArr: AreaInfo[]
+        _areasArr: AreaInfo[]
     ) => {
         setFase('loading');
         setRespuestasArea([]);
