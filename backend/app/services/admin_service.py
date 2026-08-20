@@ -71,7 +71,7 @@ class AdminService:
             
             # 4. Calcular tasa de éxito
             if diagnosticos_completados > 0:
-                aceptados = sum(1 for d in diagnosticos if d.get("resultado") == "ACEPTADO")
+                aceptados = sum(1 for d in diagnosticos if d.get("resultado") in ("ACEPTADO", "EXIMIDO"))
                 tasa_exito = round((aceptados / diagnosticos_completados) * 100, 2)
             else:
                 tasa_exito = 0.0

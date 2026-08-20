@@ -1,0 +1,102 @@
+# =============================================================
+# docker-compose.yml — DESARROLLO (hot-reload)
+# Uso: docker-compose --env-file .env.docker up
+# Requiere: .env.docker con los valores reales
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  # Frontend — Vite Dev Server (hot-reload)
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: deps             # Solo instala deps para dev (sin build innecesario)
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app        # Hot-reload: cambios en src/ se reflejan al instante
+      - /app/node_modules      # Evita sobreescribir node_modules del contenedor
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+    networks:
+      - jci-network
+
+  # -----------------------------------------------------------
+  # Backend — FastAPI + uvicorn con --reload
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app         # Hot-reload
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}
+      - ENVIRONMENT=development
+      - IA_DIAGNOSTICO_URL=http://ia-diagnostico:9000
+      - IA_BASE_URL=http://ia-seguimiento:9000
+    depends_on:
+      - ia-diagnostico
+      - ia-seguimiento
+    networks:
+      - jci-network
+
+  # -----------------------------------------------------------
+  # IA Diagnóstico — ADK api_server multi_agente_diagnostico
+  # -----------------------------------------------------------
+  ia-diagnostico:
+    build:
+      context: ./IA
+      dockerfile: Dockerfile
+    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
+    # ports:
+    #   - "9000:9000"            # Descomentar para debug local
+    volumes:
+      - ./IA:/app              # Hot-reload para desarrollo de agentes
+    environment:
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - BACKEND_URL=http://backend:8000
+    networks:
+      - jci-network
+
+  # -----------------------------------------------------------
+  # IA Seguimiento — ADK api_server multi_agente_seguimiento
+  # -----------------------------------------------------------
+  ia-seguimiento:
+    build:
+      context: ./IA
+      dockerfile: Dockerfile
+    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
+    # ports:
+    #   - "9001:9000"            # Host 9001 → contenedor 9000 (para debug)
+    volumes:
+      - ./IA:/app
+    environment:
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - EMAIL_SENDER=${EMAIL_SENDER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - BACKEND_URL=http://backend:8000
+    networks:
+      - jci-network
+
+networks:
+  jci-network:
+    driver: bridge

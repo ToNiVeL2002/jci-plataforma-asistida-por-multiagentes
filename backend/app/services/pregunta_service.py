@@ -47,18 +47,18 @@ class PreguntaService:
     
     async def get_preguntas_by_area(self, id_area: int) -> List[PreguntaConAreaResponse]:
         """
-        Obtiene todas las preguntas de un área con el nombre del área
+        Obtiene todas las preguntas de un área con el nombre del área que estén activas
         """
         try:
-            # Obtener preguntas con join al área
+            # Obtener preguntas con join al área y filtradas por estado = True
             response = self.supabase.table("pregunta").select(
                 "id_pregunta, id_area, enunciado, area(nombre_area)"
-            ).eq("id_area", id_area).order("id_pregunta").execute()
+            ).eq("id_area", id_area).eq("estado", True).order("id_pregunta").execute()
             
             if not response.data or len(response.data) == 0:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"No se encontraron preguntas para el área {id_area}"
+                    detail=f"No se encontraron preguntas activas para el área {id_area}"
                 )
             
             preguntas = []
@@ -79,6 +79,42 @@ class PreguntaService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al obtener preguntas por área: {str(e)}"
+            )
+
+    async def get_all_active_preguntas(self) -> List[PreguntaConAreaResponse]:
+        """
+        Obtiene todas las preguntas activas con el nombre del área, ordenadas por id_area e id_pregunta
+        """
+        try:
+            # Obtener preguntas con join al área ordenadas
+            response = self.supabase.table("pregunta").select(
+                "id_pregunta, id_area, enunciado, area(nombre_area)"
+            ).eq("estado", True).order("id_area").order("id_pregunta").execute()
+            
+            if not response.data or len(response.data) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No se encontraron preguntas activas"
+                )
+            
+            preguntas = []
+            for p in response.data:
+                nombre_area = p["area"]["nombre_area"] if isinstance(p.get("area"), dict) else "Desconocida"
+                preguntas.append(PreguntaConAreaResponse(
+                    id_pregunta=p["id_pregunta"],
+                    id_area=p["id_area"],
+                    nombre_area=nombre_area,
+                    enunciado=p["enunciado"],
+                ))
+            
+            return preguntas
+        
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al obtener todas las preguntas activas: {str(e)}"
             )
     
     async def get_all_areas(self) -> List[AreaResponse]:

@@ -177,3 +177,12 @@ class ResultadosRequest(BaseModel):
 class ResultadosResponse(BaseModel):
     mensaje_despedida: str
     puntaje_total: float
+
+
+class PreguntasTodasRequest(BaseModel):
+    session_id: str
+    user_id: str
+
+
+class PreguntasTodasResponse(BaseModel):
+    preguntas: list[PreguntaReformulada]

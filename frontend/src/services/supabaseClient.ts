@@ -14,8 +14,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         persistSession: true,
         detectSessionInUrl: true,
-        flowType: 'pkce', // Más seguro que implicit
+        flowType: 'pkce',
         autoRefreshToken: true,
-        storageKey: 'jci-auth', // Clave personalizada para evitar conflictos
     }
 });

@@ -4,6 +4,7 @@ Consume APIs del backend para obtener tareas y datos de usuarios.
 Envía correos de recordatorio por SMTP.
 """
 
+import os
 import smtplib
 import requests
 from datetime import datetime
@@ -14,9 +15,9 @@ from typing import Any
 from google.adk.tools import FunctionTool
 
 
-BACKEND_URL = "http://localhost:8000"
-EMAIL_SENDER = "samuelantoni2002@gmail.com"
-EMAIL_PASSWORD = "gldk yxil uijo wkdh"
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
+EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
 
 
 # ---------------------------------------------------------------------------

@@ -84,9 +84,11 @@ class MentorService:
             total_diagnosticos = len(diagnosticos)
             
             # 4. Calcular tasa de éxito
-            if total_diagnosticos > 0:
-                aceptados = sum(1 for d in diagnosticos if d["resultado"] == "ACEPTADO")
-                tasa_exito = (aceptados / total_diagnosticos) * 100
+            diagnosticos_valido = [d for d in diagnosticos if d.get("resultado") in ("ACEPTADO", "EXIMIDO", "RECHAZADO")]
+            total_validos = len(diagnosticos_valido)
+            if total_validos > 0:
+                aceptados = sum(1 for d in diagnosticos_valido if d["resultado"] in ("ACEPTADO", "EXIMIDO"))
+                tasa_exito = (aceptados / total_validos) * 100
             else:
                 tasa_exito = 0.0
             
